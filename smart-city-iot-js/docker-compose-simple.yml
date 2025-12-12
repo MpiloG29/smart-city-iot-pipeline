@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  # Only MQTT broker - most important for IoT
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
