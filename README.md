@@ -1,4 +1,6 @@
 # Smart City IoT Pipeline
+<img width="1575" height="772" alt="Screenshot (54)" src="https://github.com/user-attachments/assets/371ce76a-f47e-4d51-9530-c3704a1e9762" />
+
 
 A real-time Smart City simulation and dashboard focused on Johannesburg. The app simulates traffic and air-quality telemetry, exposes REST APIs, and streams live updates over WebSockets.
 
