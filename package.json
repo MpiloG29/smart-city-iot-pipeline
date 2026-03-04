@@ -1,7 +1,11 @@
 {
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.2.1",
-    "socket.io": "^4.8.1"
+  "name": "smart-city-iot-pipeline",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Monorepo wrapper for Smart City IoT dashboard app",
+  "scripts": {
+    "install:app": "npm --prefix smart-city-iot-js install",
+    "start": "npm --prefix smart-city-iot-js start",
+    "dev": "npm --prefix smart-city-iot-js run dev"
   }
 }

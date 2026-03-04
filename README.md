@@ -1,27 +1,27 @@
-# Smart City IoT Data Pipeline
+# Smart City IoT Pipeline
 
-## Overview
-Real-time data processing pipeline for smart city IoT analytics. Processes data from traffic cameras, air quality sensors, and smart meters using MQTT, Kafka, Spark Streaming, and TimescaleDB.
+A real-time Smart City simulation and dashboard focused on Johannesburg. The app simulates traffic and air-quality telemetry, exposes REST APIs, and streams live updates over WebSockets.
 
-## Features
-- Real-time data ingestion from IoT devices
-- Stream processing with Apache Spark
-- Time-series data storage
-- Interactive dashboards
-- Edge computing capabilities
+## What was fixed in project structure
 
-##  Architecture
-![Architecture Diagram](docs/architecture.png)
+This repository had deployment blockers (for example, the app start script pointed to `api/server.js`, which does not exist). The project is now organized so deployment is straightforward:
 
-##  Tech Stack
-- **Data Ingestion:** MQTT (Mosquitto)
-- **Stream Processing:** Apache Kafka, Spark Streaming
-- **Storage:** TimescaleDB, PostgreSQL
-- **Visualization:** Grafana, Streamlit
-- **Orchestration:** Docker, Docker Compose
+- Root project acts as a thin wrapper with convenience scripts.
+- Runnable app lives in `smart-city-iot-js/`.
+- Docker deployment is defined in root `docker-compose.yml`.
+- App container build is defined in `smart-city-iot-js/Dockerfile`.
 
-## Installation
-```bash
-git clone https://github.com/MpiloG29/smart-city-iot-pipeline.git
-cd smart-city-iot-pipeline
-docker-compose up -d
+## Repository layout
+
+```text
+.
+├── docker-compose.yml          # Container deployment entrypoint
+├── package.json                # Root convenience scripts
+├── smart-city-iot-js/
+│   ├── Dockerfile              # App container image
+│   ├── package.json            # App scripts + dependencies
+│   ├── server.js               # Main API + dashboard + websocket server
+│   ├── public/                 # Frontend dashboard assets
+│   ├── sensors/                # IoT data simulators
+│   └── api/                    # Additional API route modules (in-progress)
+└── README.md
