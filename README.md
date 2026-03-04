@@ -1,6 +1,4 @@
 # Smart City IoT Pipeline
-<img width="1575" height="772" alt="Screenshot (54)" src="https://github.com/user-attachments/assets/371ce76a-f47e-4d51-9530-c3704a1e9762" />
-
 
 A real-time Smart City simulation and dashboard focused on Johannesburg. The app simulates traffic and air-quality telemetry, exposes REST APIs, and streams live updates over WebSockets.
 
@@ -10,17 +8,19 @@ This repository had deployment blockers (for example, the app start script point
 
 - Root project acts as a thin wrapper with convenience scripts.
 - Runnable app lives in `smart-city-iot-js/`.
-- Docker deployment is defined in root `docker-compose.yml`.
-- App container build is defined in `smart-city-iot-js/Dockerfile`.
+- Docker deployment is defined in root `docker-compose.yml` / `compose.yaml`.
+- App container build is defined in root `Dockerfile` (Render-friendly).
 
 ## Repository layout
 
 ```text
 .
 ├── docker-compose.yml          # Container deployment entrypoint
+├── compose.yaml                # Alternative Compose filename
+├── Dockerfile                  # Production container image (root)
 ├── package.json                # Root convenience scripts
 ├── smart-city-iot-js/
-│   ├── Dockerfile              # App container image
+│   ├── Dockerfile              # Legacy app-only image (optional)
 │   ├── package.json            # App scripts + dependencies
 │   ├── server.js               # Main API + dashboard + websocket server
 │   ├── public/                 # Frontend dashboard assets

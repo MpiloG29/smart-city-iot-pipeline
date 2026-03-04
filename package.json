@@ -5,7 +5,7 @@
   "description": "Monorepo wrapper for Smart City IoT dashboard app",
   "scripts": {
     "install:app": "npm --prefix smart-city-iot-js install",
-    "start": "npm --prefix smart-city-iot-js start",
+    "start": "npm --prefix smart-city-iot-js install --omit=dev && npm --prefix smart-city-iot-js start",
     "dev": "npm --prefix smart-city-iot-js run dev"
   }
 }

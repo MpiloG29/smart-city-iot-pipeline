@@ -1,7 +1,7 @@
 services:
   dashboard:
     build:
-      context: ./smart-city-iot-js
+      context: .
       dockerfile: Dockerfile
     container_name: smart-city-dashboard
     ports:
