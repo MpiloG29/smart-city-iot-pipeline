@@ -26,19 +26,18 @@ It generates live traffic and air-quality telemetry, streams updates over WebSoc
 ---
 
 ## Overview
-Real-time data processing pipeline for smart city IoT analytics. Processes data from traffic cameras, air quality sensors, and smart meters using MQTT, Kafka, Spark Streaming, and TimescaleDB.
+A real-time IoT monitoring dashboard for the City of Johannesburg, providing live traffic data, air quality monitoring, incident detection, and predictive analytics. This system demonstrates how IoT sensors and real-time data processing can improve urban management and citizen safety.
 
-This project simulates a city-scale IoT scenario:
+**Live Demo:** [smart-city-iot-pipeline-1.onrender.com](https://smart-city-iot-pipeline-1.onrender.com)
 
-- **Traffic cameras** publish congestion, speed, and incident data.
-- **Air-quality sensors** publish AQI and pollutant readings.
-- A backend service exposes:
-  - a browser dashboard,
-  - HTTP API routes,
-  - WebSocket events for live updates.
+##  Problem Statement
 
-The current stable runtime path is through `smart-city-iot-js/server.js`.
+Modern cities face challenges in managing traffic congestion, monitoring environmental conditions, and responding to incidents quickly. This dashboard addresses these challenges by:
 
+- **Real-time Traffic Monitoring** - Live vehicle counts and speed tracking
+- **Environmental Sensing** - Air quality index monitoring across locations
+- **Incident Detection** - Automatic alerts for accidents, flooding, and breakdowns
+- **Predictive Insights** - Trend analysis and forecasting for better decision-making
 ---
 
 ## Features
@@ -47,10 +46,10 @@ The current stable runtime path is through `smart-city-iot-js/server.js`.
 - Time-series data storage
 - Interactive dashboards
 - Edge computing capabilities
+<img width="1586" height="758" alt="Screenshot (58)" src="https://github.com/user-attachments/assets/0d7669b3-4f71-484b-9e7e-1868406b2f35" />
+<img width="1600" height="732" alt="Screenshot (59)" src="https://github.com/user-attachments/assets/1570962f-5aac-4137-93ec-19c90cf765a1" />
+<img width="1591" height="134" alt="Screenshot (60)" src="https://github.com/user-attachments/assets/edfba5d9-8bc4-4f0e-9f31-a7c3d1160f2d" />
 
-<img width="1366" height="626" alt="Screenshot (47)" src="https://github.com/user-attachments/assets/0e2eccde-6f31-40e2-a0b6-4fe1f177a5b0" />
-<img width="1347" height="637" alt="Screenshot (48)" src="https://github.com/user-attachments/assets/970064ea-2be9-446a-8e7d-c88cdda33dd7" />
-<img width="1356" height="618" alt="Screenshot (49)" src="https://github.com/user-attachments/assets/17748b75-aa65-492f-bb5f-0c4c9a1e7f1f" />
 
 
 
@@ -186,6 +185,7 @@ docker compose down
 
 This repo is configured for Render using Docker.
 
+Live Link: https://smart-city-iot-pipeline-s9vn.onrender.com/
 ### Recommended Render Settings
 
 - **Runtime:** Docker
