@@ -298,6 +298,7 @@
             margin-bottom: 10px;
             border-left: 4px solid;
             transition: transform 0.3s ease;
+            cursor: pointer;
         }
 
         .alert-item:hover {
@@ -399,6 +400,50 @@
             background: #1a1f2f;
         }
 
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 15px 10px;
+            color: #888;
+            font-weight: 500;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        th:hover {
+            color: #64b5f6;
+        }
+
+        td {
+            padding: 15px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        tr:hover td {
+            background: rgba(100, 181, 246, 0.1);
+        }
+
+        .status-badge-table {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge-table.normal { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .status-badge-table.warning { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .status-badge-table.critical { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+
+        /* Detail View */
         .detail-view {
             margin-top: 20px;
             padding: 20px;
@@ -432,6 +477,10 @@
             padding: 5px 10px;
             border-radius: 5px;
             cursor: pointer;
+        }
+
+        .close-btn:hover {
+            background: #64b5f6;
         }
 
         .detail-grid {
@@ -863,7 +912,7 @@
         }
 
         // Auto-refresh setup
-        function startAutoRefresh(interval = 5000) {
+        function startAutoRefresh(interval = 10000) {
             if (refreshInterval) {
                 clearInterval(refreshInterval);
             }
@@ -884,57 +933,104 @@
                 ]
             };
             updateTrafficData(demoData);
+            
+            // Update KPI with demo values
+            document.getElementById('avgSpeed').textContent = '49.8 km/h';
+            document.getElementById('activeCameras').textContent = '5';
+            document.getElementById('activeIncidents').textContent = '0';
+            document.getElementById('avgAQI').textContent = '86';
+            document.getElementById('activeAlerts').textContent = '5';
+            
+            // Update AQI chart with demo data
+            if (aqiChart) {
+                aqiChart.data.datasets[0].data = [117, 79, 61, 84, 84];
+                aqiChart.update();
+            }
         }
 
-        // Socket.io Connection
+        // Socket.io Connection - FIXED FOR RENDER
         function initializeSocket() {
-            socket = io('http://localhost:3000', {
-                transports: ['websocket'],
+            // Automatically detect if running on localhost or Render
+            const hostname = window.location.hostname;
+            const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+            
+            // Use the current origin for Render, or localhost:3000 for development
+            const serverUrl = isLocalhost ? 'http://localhost:3000' : window.location.origin;
+            
+            console.log('🌐 Connecting to server:', serverUrl);
+            console.log('📡 Hostname:', hostname);
+            
+            socket = io(serverUrl, {
+                transports: ['websocket', 'polling'], // Add polling as fallback
                 reconnection: true,
-                reconnectionAttempts: 5,
-                reconnectionDelay: 1000
+                reconnectionAttempts: 10,
+                reconnectionDelay: 1000,
+                timeout: 20000
             });
 
+            // Connection established
             socket.on('connect', () => {
-                console.log('Connected to server:', socket.id);
+                console.log('✅ Connected to server:', socket.id);
                 document.getElementById('latency').textContent = 'Connected';
                 document.getElementById('statusBadge').innerHTML = '<span class="status-dot"></span><span>System Online</span>';
+                
+                // Request initial data
                 socket.emit('request-initial-data');
             });
 
+            // Connection error
             socket.on('connect_error', (error) => {
-                console.error('Connection error:', error);
+                console.error('❌ Connection error:', error);
                 document.getElementById('latency').textContent = 'Disconnected';
                 document.getElementById('statusBadge').innerHTML = '<span class="status-dot" style="background: #ff0000;"></span><span>Offline</span>';
+                
+                // Fallback to demo data if connection fails
+                console.log('Using demo data as fallback');
                 refreshWithDemoData();
             });
 
+            // Reconnection
+            socket.on('reconnect', (attemptNumber) => {
+                console.log('🔄 Reconnected to server after', attemptNumber, 'attempts');
+                socket.emit('request-initial-data');
+            });
+
+            socket.on('reconnect_error', (error) => {
+                console.error('❌ Reconnection error:', error);
+            });
+
+            // Listen for traffic data updates
             socket.on('traffic-update', (data) => {
-                console.log('Traffic update received:', data);
+                console.log('🚦 Traffic update received:', data);
                 updateTrafficData(data);
             });
 
+            // Listen for new alerts
             socket.on('new-alert', (alert) => {
-                console.log('New alert received:', alert);
+                console.log('🚨 New alert received:', alert);
                 addNewAlert(alert);
                 updateAlertCount();
             });
 
+            // Listen for KPI updates
             socket.on('kpi-update', (data) => {
-                console.log('KPI update received:', data);
+                console.log('📊 KPI update received:', data);
                 updateKPIValues(data);
             });
 
+            // Listen for AQI updates
             socket.on('aqi-update', (data) => {
-                console.log('AQI update received:', data);
+                console.log('🌫️ AQI update received:', data);
                 updateAQIChart(data);
             });
 
+            // Listen for device health updates
             socket.on('device-health', (data) => {
-                console.log('Device health update:', data);
+                console.log('🖥️ Device health update:', data);
                 updateDeviceHealth(data);
             });
 
+            // Listen for latency/ping updates
             socket.on('ping', (timestamp) => {
                 const latency = Date.now() - timestamp;
                 document.getElementById('latency').textContent = `Connected (${latency}ms)`;
@@ -1069,8 +1165,8 @@
                 <div class="alert-content">
                     <div class="alert-title">${alert.location} - ${alert.message}</div>
                     <div class="alert-meta">
-                        <span>${alert.time || getCurrentTime()}</span>
-                        <span>Severity: ${alert.severity || 'medium'}</span>
+                        <span>🕐 ${alert.time || getCurrentTime()}</span>
+                        <span>📊 Severity: ${alert.severity || 'medium'}</span>
                     </div>
                 </div>
                 <div class="alert-status">${alert.status || 'active'}</div>
@@ -1177,7 +1273,7 @@
             document.querySelectorAll('.location-tag').forEach(tag => {
                 tag.classList.remove('active');
             });
-            event.target.classList.add('active');
+            if (event) event.target.classList.add('active');
             
             if (location === 'all') {
                 centerMap();
@@ -1339,8 +1435,8 @@
             initMap();
             initCharts();
             initializeSocket();
-            startAutoRefresh(10000); // Refresh every 10 seconds
-            refreshWithDemoData(); // Load demo data immediately
+            startAutoRefresh(10000);
+            refreshWithDemoData(); // Load demo data immediately while connecting
         };
     </script>
 </body>
