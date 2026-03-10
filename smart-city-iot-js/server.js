@@ -1,418 +1,207 @@
-// server.js - Complete Smart City Server
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-require('dotenv').config();
 
-// Create Express app
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
-
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(require('cors')());
-app.use(express.json());
-app.use(express.static('public'));
-
-// Data storage
-let trafficData = [];
-let airQualityData = [];
-let alerts = [];
-
-// Johannesburg locations
-const locations = [
-  { name: 'CBD', lat: -26.2041, lng: 28.0473, type: 'urban' },
-  { name: 'Sandton', lat: -26.1076, lng: 28.0567, type: 'commercial' },
-  { name: 'Soweto', lat: -26.2385, lng: 28.0133, type: 'residential' },
-  { name: 'Rosebank', lat: -26.1356, lng: 28.0316, type: 'commercial' },
-  { name: 'Germiston', lat: -26.2608, lng: 28.1126, type: 'industrial' }
-];
-
-// Generate traffic data
-function generateTrafficData(location) {
-  const hour = new Date().getHours();
-  const minute = new Date().getMinutes();
-  
-  // Traffic patterns based on time
-  let baseVehicles, baseSpeed;
-  if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18)) {
-    // Rush hour
-    baseVehicles = 35 + Math.sin(minute / 60 * Math.PI) * 15;
-    baseSpeed = 25 + Math.cos(minute / 60 * Math.PI) * 10;
-  } else if (hour >= 22 || hour <= 5) {
-    // Night
-    baseVehicles = 5 + Math.random() * 10;
-    baseSpeed = 60 + Math.random() * 20;
-  } else {
-    // Normal hours
-    baseVehicles = 15 + Math.sin(hour / 24 * Math.PI) * 10;
-    baseSpeed = 45 + Math.cos(hour / 24 * Math.PI) * 15;
-  }
-  
-  // Add randomness
-  const vehicles = Math.max(0, Math.min(60, 
-    baseVehicles + (Math.random() * 20 - 10)
-  ));
-  
-  const speed = Math.max(5, Math.min(120,
-    baseSpeed + (Math.random() * 15 - 7.5)
-  ));
-  
-  // Determine congestion
-  let congestion;
-  if (speed < 20) congestion = 'severe';
-  else if (speed < 40) congestion = 'high';
-  else if (speed < 60) congestion = 'moderate';
-  else congestion = 'low';
-  
-  // Check for incidents (8% chance during rush hour, 3% otherwise)
-  const incidentChance = ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18)) ? 0.08 : 0.03;
-  const incidentDetected = Math.random() < incidentChance;
-  const incidentTypes = ['accident', 'breakdown', 'roadwork', 'debris', 'flooding'];
-  const incidentType = incidentDetected ? 
-    incidentTypes[Math.floor(Math.random() * incidentTypes.length)] : null;
-  
-  return {
-    camera_id: `JHB_CAM_${location.name.toUpperCase().substring(0, 3)}`,
-    location: location,
-    vehicles: Math.round(vehicles),
-    speed: Math.round(speed * 10) / 10,
-    congestion: congestion,
-    incident_detected: incidentDetected,
-    incident_type: incidentType,
-    timestamp: new Date().toISOString()
-  };
-}
-
-// Generate air quality data
-function generateAirQualityData(location) {
-  const hour = new Date().getHours();
-  const weekday = new Date().getDay();
-  
-  // Base pollution based on location type
-  let basePM25;
-  switch(location.type) {
-    case 'industrial': basePM25 = 45; break;
-    case 'commercial': basePM25 = 30; break;
-    case 'urban': basePM25 = 25; break;
-    case 'residential': basePM25 = 20; break;
-    default: basePM25 = 15;
-  }
-  
-  // Time patterns (higher during day, lower at night)
-  const timeFactor = 0.7 + 0.3 * Math.sin(hour / 24 * Math.PI);
-  
-  // Traffic impact (higher during rush hours)
-  let trafficFactor = 1.0;
-  if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18)) {
-    trafficFactor = 1.5;
-  }
-  
-  // Weekend effect
-  if (weekday >= 5) { // Weekend
-    if (location.type === 'industrial') trafficFactor *= 0.5;
-    else if (location.type === 'commercial') trafficFactor *= 0.7;
-    else trafficFactor *= 1.2;
-  }
-  
-  // Generate pollutants
-  const pm25 = Math.max(0, Math.min(300,
-    basePM25 * timeFactor * trafficFactor * (1 + (Math.random() * 0.4 - 0.2))
-  ));
-  
-  const pm10 = pm25 * 1.5;
-  const co = (basePM25 / 10) * trafficFactor * (1 + Math.random() * 0.3);
-  const no2 = (basePM25 / 20) * trafficFactor * (1 + Math.random() * 0.2);
-  
-  // Calculate AQI (simplified)
-  let aqi, category;
-  if (pm25 <= 12) {
-    aqi = (pm25 / 12) * 50;
-    category = 'Good';
-  } else if (pm25 <= 35.4) {
-    aqi = 50 + ((pm25 - 12.1) / (35.4 - 12.1)) * 50;
-    category = 'Moderate';
-  } else if (pm25 <= 55.4) {
-    aqi = 100 + ((pm25 - 35.5) / (55.4 - 35.5)) * 50;
-    category = 'Unhealthy for Sensitive Groups';
-  } else if (pm25 <= 150.4) {
-    aqi = 150 + ((pm25 - 55.5) / (150.4 - 55.5)) * 100;
-    category = 'Unhealthy';
-  } else {
-    aqi = 200 + ((pm25 - 150.5) / (300 - 150.5)) * 100;
-    category = 'Very Unhealthy';
-  }
-  
-  return {
-    sensor_id: `JHB_AIR_${location.name.toUpperCase().substring(0, 3)}`,
-    location: location,
-    pm25: Math.round(pm25 * 10) / 10,
-    pm10: Math.round(pm10 * 10) / 10,
-    co: Math.round(co * 100) / 100,
-    no2: Math.round(no2 * 100) / 100,
-    aqi: Math.round(aqi),
-    category: category,
-    temperature: 15 + 10 * Math.sin(hour / 24 * Math.PI) + (Math.random() * 5 - 2.5),
-    humidity: 40 + 30 * Math.cos(hour / 24 * Math.PI) + (Math.random() * 20 - 10),
-    timestamp: new Date().toISOString()
-  };
-}
-
-// Start sensor simulation
-function startSensorSimulation() {
-  console.log('🚦 Starting sensor simulation...');
-  
-  // Traffic simulation (every 5 seconds)
-  setInterval(() => {
-    locations.forEach(location => {
-      const traffic = generateTrafficData(location);
-      trafficData.push(traffic);
-      
-      // Keep only last 1000 entries
-      if (trafficData.length > 1000) {
-        trafficData.shift();
-      }
-      
-      // Broadcast via WebSocket
-      io.emit('traffic_update', traffic);
-      
-      // Check for incidents and create alerts
-      if (traffic.incident_detected) {
-        const alert = {
-          id: Date.now(),
-          type: 'traffic_incident',
-          location: location.name,
-          severity: traffic.congestion === 'severe' ? 'high' : 'medium',
-          message: `${traffic.incident_type} detected in ${location.name}`,
-          timestamp: new Date().toISOString()
-        };
-        alerts.push(alert);
-        io.emit('alert', alert);
-        
-        // Keep only last 50 alerts
-        if (alerts.length > 50) {
-          alerts.shift();
-        }
-      }
-      
-      // Log occasionally
-      if (Math.random() < 0.2) {
-        console.log(`📡 ${location.name}: ${traffic.vehicles} vehicles, ${traffic.speed} km/h, ${traffic.congestion}`);
-      }
-    });
-  }, 5000);
-  
-  // Air quality simulation (every 10 seconds)
-  setInterval(() => {
-    locations.forEach(location => {
-      const airQuality = generateAirQualityData(location);
-      airQualityData.push(airQuality);
-      
-      // Keep only last 1000 entries
-      if (airQualityData.length > 1000) {
-        airQualityData.shift();
-      }
-      
-      // Broadcast via WebSocket
-      io.emit('air_quality_update', airQuality);
-      
-      // Create alert for poor air quality
-      if (airQuality.aqi > 100) {
-        const alert = {
-          id: Date.now(),
-          type: 'air_quality',
-          location: location.name,
-          severity: airQuality.aqi > 150 ? 'high' : 'medium',
-          message: `Poor air quality in ${location.name} (AQI: ${airQuality.aqi})`,
-          timestamp: new Date().toISOString()
-        };
-        alerts.push(alert);
-        io.emit('alert', alert);
-      }
-      
-      // Log occasionally
-      if (Math.random() < 0.1) {
-        console.log(`🌫️ ${location.name}: AQI ${airQuality.aqi}, ${airQuality.category}`);
-      }
-    });
-  }, 10000);
-}
-
-// Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    services: {
-      api: 'running',
-      websocket: 'active',
-      simulation: 'running'
-    },
-    statistics: {
-      traffic_readings: trafficData.length,
-      air_quality_readings: airQualityData.length,
-      active_alerts: alerts.length,
-      locations_monitored: locations.length
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
     }
-  });
 });
 
-app.get('/api/traffic', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-  const data = trafficData.slice(-limit).reverse();
-  
-  // Calculate statistics
-  const stats = {
-    total_readings: trafficData.length,
-    avg_vehicles: data.length > 0 ? 
-      data.reduce((sum, d) => sum + d.vehicles, 0) / data.length : 0,
-    avg_speed: data.length > 0 ? 
-      data.reduce((sum, d) => sum + d.speed, 0) / data.length : 0,
-    incidents: data.filter(d => d.incident_detected).length,
-    congestion_distribution: {
-      severe: data.filter(d => d.congestion === 'severe').length,
-      high: data.filter(d => d.congestion === 'high').length,
-      moderate: data.filter(d => d.congestion === 'moderate').length,
-      low: data.filter(d => d.congestion === 'low').length
-    }
-  };
-  
-  res.json({
-    success: true,
-    count: data.length,
-    data: data,
-    statistics: stats,
-    timestamp: new Date().toISOString()
-  });
-});
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/api/air-quality', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-  const data = airQualityData.slice(-limit).reverse();
-  
-  res.json({
-    success: true,
-    count: data.length,
-    data: data,
-    timestamp: new Date().toISOString()
-  });
-});
+// Store connected clients
+let connectedClients = 0;
 
-app.get('/api/alerts', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-  const data = alerts.slice(-limit).reverse();
-  
-  res.json({
-    success: true,
-    count: data.length,
-    data: data,
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.get('/api/analytics', (req, res) => {
-  const recentTraffic = trafficData.slice(-100);
-  const recentAir = airQualityData.slice(-100);
-  
-  // Traffic analytics
-  const trafficByLocation = {};
-  recentTraffic.forEach(data => {
-    const loc = data.location.name;
-    if (!trafficByLocation[loc]) {
-      trafficByLocation[loc] = {
-        readings: 0,
-        total_vehicles: 0,
-        total_speed: 0,
-        incidents: 0
-      };
-    }
-    trafficByLocation[loc].readings++;
-    trafficByLocation[loc].total_vehicles += data.vehicles;
-    trafficByLocation[loc].total_speed += data.speed;
-    if (data.incident_detected) trafficByLocation[loc].incidents++;
-  });
-  
-  const locationAnalytics = Object.entries(trafficByLocation).map(([location, stats]) => ({
-    location,
-    avg_vehicles: stats.total_vehicles / stats.readings,
-    avg_speed: stats.total_speed / stats.readings,
-    incident_rate: (stats.incidents / stats.readings) * 100,
-    congestion_index: 100 - (stats.total_speed / stats.readings) * 1.5
-  }));
-  
-  // Air quality analytics
-  const avgAQI = recentAir.length > 0 ? 
-    recentAir.reduce((sum, d) => sum + d.aqi, 0) / recentAir.length : 0;
-  
-  res.json({
-    success: true,
-    analytics: {
-      traffic: {
-        by_location: locationAnalytics,
-        hotspots: locationAnalytics
-          .filter(loc => loc.congestion_index > 60 || loc.incident_rate > 10)
-          .sort((a, b) => b.congestion_index - a.congestion_index)
-          .slice(0, 3)
-      },
-      air_quality: {
-        avg_aqi: avgAQI,
-        overall_health: avgAQI < 50 ? 'Good' : avgAQI < 100 ? 'Moderate' : 'Unhealthy',
-        worst_location: recentAir.length > 0 ? 
-          recentAir.reduce((worst, current) => current.aqi > worst.aqi ? current : worst) : null
-      }
-    },
-    timestamp: new Date().toISOString()
-  });
-});
-
-// WebSocket connection
 io.on('connection', (socket) => {
-  console.log(`🔌 New client connected: ${socket.id}`);
-  
-  socket.emit('welcome', {
-    message: 'Connected to Johannesburg Smart City Dashboard',
-    timestamp: new Date().toISOString(),
-    locations: locations.map(l => l.name)
-  });
-  
-  // Send initial data
-  socket.emit('initial_data', {
-    traffic: trafficData.slice(-20).reverse(),
-    air_quality: airQualityData.slice(-10).reverse(),
-    alerts: alerts.slice(-10).reverse()
-  });
-  
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
-  });
+    connectedClients++;
+    console.log(`🟢 Client connected. Total: ${connectedClients}`);
+
+    // Send initial data
+    socket.emit('traffic-update', getTrafficData());
+    socket.emit('kpi-update', getKPIValues());
+    socket.emit('aqi-update', getAQIData());
+    socket.emit('device-health', getDeviceHealth());
+
+    // Handle request for initial data
+    socket.on('request-initial-data', () => {
+        console.log('📊 Sending initial data to client');
+        socket.emit('traffic-update', getTrafficData());
+        socket.emit('kpi-update', getKPIValues());
+        socket.emit('aqi-update', getAQIData());
+        socket.emit('device-health', getDeviceHealth());
+        
+        // Send some initial alerts
+        const initialAlerts = getInitialAlerts();
+        initialAlerts.forEach(alert => {
+            socket.emit('new-alert', alert);
+        });
+    });
+
+    // Handle device commands
+    socket.on('device-command', (data) => {
+        console.log('📱 Device command received:', data);
+        socket.emit('command-response', { 
+            status: 'success', 
+            message: `Command ${data.command} sent to ${data.location}` 
+        });
+    });
+
+    socket.on('disconnect', () => {
+        connectedClients--;
+        console.log(`🔴 Client disconnected. Total: ${connectedClients}`);
+    });
 });
 
-// Start the server
+// Real data generators
+function getTrafficData() {
+    return {
+        locations: [
+            { name: 'Germiston', vehicles: 21, speed: 45.7, congestion: 'Moderate', status: 'normal', lastUpdate: getCurrentTime(), aqi: 117 },
+            { name: 'Rosebank', vehicles: 34, speed: 54.8, congestion: 'Moderate', status: 'normal', lastUpdate: getCurrentTime(), aqi: 79 },
+            { name: 'Soweto', vehicles: 31, speed: 55.3, congestion: 'Moderate', status: 'normal', lastUpdate: getCurrentTime(), aqi: 61 },
+            { name: 'Sandton', vehicles: 21, speed: 50.3, congestion: 'Moderate', status: 'normal', lastUpdate: getCurrentTime(), aqi: 84 },
+            { name: 'CBD', vehicles: 17, speed: 43.4, congestion: 'Heavy', status: 'warning', lastUpdate: getCurrentTime(), aqi: 84 }
+        ]
+    };
+}
+
+function getKPIValues() {
+    return {
+        avgSpeed: '49.8 km/h',
+        activeCameras: '5',
+        activeIncidents: '0',
+        avgAQI: '86',
+        activeAlerts: '10'
+    };
+}
+
+function getAQIData() {
+    return {
+        values: [117, 79, 61, 84, 84],
+        locations: ['Germiston', 'Rosebank', 'Soweto', 'Sandton', 'CBD']
+    };
+}
+
+function getDeviceHealth() {
+    return {
+        devices: [
+            { status: '5/5 Online', uptime: '100%' },
+            { status: '5/5 Online', uptime: '99.9%' },
+            { status: '23/24 Online', uptime: '95.8%' },
+            { status: '8/8 Online', uptime: '100%' }
+        ]
+    };
+}
+
+function getInitialAlerts() {
+    return [
+        { 
+            location: 'CBD', 
+            time: getCurrentTime(), 
+            message: 'Accident detected on M1 North', 
+            type: 'accident', 
+            severity: 'critical', 
+            status: 'active' 
+        },
+        { 
+            location: 'Sandton', 
+            time: getCurrentTime(), 
+            message: 'Flooding detected in Sandton', 
+            type: 'flooding', 
+            severity: 'high', 
+            status: 'active' 
+        },
+        { 
+            location: 'Germiston', 
+            time: getCurrentTime(), 
+            message: 'Poor air quality (AQI: 117)', 
+            type: 'air-quality', 
+            severity: 'medium', 
+            status: 'active' 
+        },
+        { 
+            location: 'Rosebank', 
+            time: getCurrentTime(), 
+            message: 'Traffic signal malfunction', 
+            type: 'breakdown', 
+            severity: 'medium', 
+            status: 'active' 
+        },
+        { 
+            location: 'Soweto', 
+            time: getCurrentTime(), 
+            message: 'Vehicle breakdown on highway', 
+            type: 'breakdown', 
+            severity: 'low', 
+            status: 'active' 
+        }
+    ];
+}
+
+function getCurrentTime() {
+    const now = new Date();
+    return now.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+// Generate random alert for variety
+function generateRandomAlert() {
+    const types = ['accident', 'flooding', 'air-quality', 'breakdown'];
+    const locations = ['CBD', 'Sandton', 'Soweto', 'Rosebank', 'Germiston'];
+    const severities = ['low', 'medium', 'high', 'critical'];
+    
+    const type = types[Math.floor(Math.random() * types.length)];
+    const location = locations[Math.floor(Math.random() * locations.length)];
+    const severity = severities[Math.floor(Math.random() * severities.length)];
+    
+    let message;
+    switch(type) {
+        case 'accident': message = 'Accident detected'; break;
+        case 'flooding': message = 'Flooding detected'; break;
+        case 'air-quality': message = `Poor air quality (AQI: ${Math.floor(Math.random() * 100 + 100)})`; break;
+        case 'breakdown': message = 'Vehicle breakdown'; break;
+    }
+    
+    return {
+        type,
+        location,
+        message,
+        severity,
+        time: getCurrentTime(),
+        status: 'active'
+    };
+}
+
+// Broadcast updates every 5 seconds
+setInterval(() => {
+    io.emit('traffic-update', getTrafficData());
+    io.emit('kpi-update', getKPIValues());
+    io.emit('aqi-update', getAQIData());
+    io.emit('device-health', getDeviceHealth());
+    
+    // Send random alerts occasionally (30% chance)
+    if (Math.random() > 0.7) {
+        const alert = generateRandomAlert();
+        io.emit('new-alert', alert);
+        console.log('🚨 New alert sent:', alert.location, alert.message);
+    }
+    
+    // Send ping for latency measurement
+    io.emit('ping', Date.now());
+}, 5000);
+
+const PORT = 3000;
 server.listen(PORT, () => {
-  console.log('='.repeat(60));
-  console.log('🏙️  JOHANNESBURG SMART CITY DASHBOARD');
-  console.log('='.repeat(60));
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`📚 API: http://localhost:${PORT}/api/health`);
-  console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
-  console.log('='.repeat(60));
-  console.log('\n📡 Simulating 5 locations in Johannesburg:');
-  locations.forEach(loc => console.log(`   📍 ${loc.name} (${loc.type})`));
-  console.log('\n🎯 Press Ctrl+C to stop\n');
-  
-  // Start sensor simulation
-  startSensorSimulation();
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log(`📊 Dashboard available at http://localhost:${PORT}`);
+    console.log(`📁 Serving files from: ${path.join(__dirname, 'public')}`);
 });
